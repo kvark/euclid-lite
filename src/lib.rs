@@ -1,17 +1,13 @@
 extern crate cgmath;
 
+use std::cmp::Ordering;
+use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Add, Sub, Mul, Div};
 use cgmath::{BaseNum, Point2, Vector2};
 
 
 pub struct Typed<V, U>(pub V, PhantomData<U>);
-
-impl<V: Clone, U> Clone for Typed<V, U> {
-    fn clone(&self) -> Self {
-        Typed(self.0.clone(), self.1)
-    }
-}
 
 impl<V, U> Typed<V, U> {
     //Note: left for backwards compatibility,
@@ -26,14 +22,49 @@ impl<V, U> Typed<V, U> {
     }
 }
 
+
+impl<V: Clone, U> Clone for Typed<V, U> {
+    fn clone(&self) -> Self {
+        Typed(self.0.clone(), self.1)
+    }
+}
+
+impl<V: fmt::Debug, U> fmt::Debug for Typed<V, U> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+        self.0.fmt(f)
+    }
+}
+
+impl<W, V: PartialEq<W>, U> PartialEq<Typed<W, U>> for Typed<V, U> {
+    fn eq(&self, other: &Typed<W, U>) -> bool {
+        self.0.eq(&other.0)
+    }
+}
+
+impl<V: Eq, U> Eq for Typed<V, U> {
+    //empty
+}
+
+impl<W, V: PartialOrd<W>, U> PartialOrd<Typed<W, U>> for Typed<V, U> {
+    fn partial_cmp(&self, other: &Typed<W, U>) -> Option<Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<V: Ord, U> Ord for Typed<V, U> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+
 macro_rules! op_binary {
     ($($name:ident::$fun:ident),*) => {
         $(
             impl<W, V: $name<W>, U> $name<Typed<W, U>> for Typed<V, U> {
                 type Output = Typed<V::Output, U>;
                 fn $fun(self, other: Typed<W, U>) -> Self::Output {
-                    let v = self.0;
-                    Typed(v.$fun(other.0), PhantomData)
+                    Typed((self.0).$fun(other.0), PhantomData)
                 }
             }
         )*
@@ -41,6 +72,7 @@ macro_rules! op_binary {
 }
 
 op_binary!(Add::add, Sub::sub, Mul::mul, Div::div);
+
 
 macro_rules! define_type {
     ($name:ident = $inner:ident [$($field:ident),*]) => {
@@ -63,10 +95,12 @@ define_type!(TypedPoint2 = Point2 [x, y]);
 
 #[cfg(test)]
 mod test {
+    use super::*;
+
     #[test]
     fn test_operations() {
-        let pos = TypedPoint2::new(1i32, 2i32);
-        let vec = TypedVector2::new(2i32, 2i32);
-        let res = pos + vec;
+        let pos: TypedPoint2<i32, ()> = TypedPoint2::new(1, 2);
+        let vec: TypedVector2<i32, ()> = TypedVector2::new(2, 2);
+        assert_eq!(pos + vec, TypedPoint2::new(3, 4));
     }
 }
